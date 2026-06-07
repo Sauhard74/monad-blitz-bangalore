@@ -1,0 +1,13 @@
+import { chromium } from '@playwright/test';
+const browser = await chromium.launch();
+const page = await browser.newPage({ viewport: { width: 1680, height: 1050 } });
+const errs = [];
+page.on('pageerror', (e) => errs.push(e.message));
+await page.goto('http://localhost:3000', { waitUntil: 'networkidle' });
+await page.waitForTimeout(1500);
+await page.getByPlaceholder(/Give the company a project/).fill('a habit-tracking app');
+await page.getByRole('button', { name: 'START' }).click();
+await page.waitForTimeout(Number(process.argv[2] ?? 7000));
+await page.screenshot({ path: process.argv[3] ?? '/tmp/flow.png' });
+console.log('pageerrors:', errs.length ? errs.join(' | ') : 'none');
+await browser.close();

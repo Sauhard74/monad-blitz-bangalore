@@ -1,0 +1,17 @@
+node_modules
+.next
+.git
+.env*
+!.env.example
+npm-debug.log*
+test-results
+playwright-report
+blob-report
+docs
+infra
+scripts/screenshot.mjs
+scripts/flowshot.mjs
+*.md
+.DS_Store
+*.zip
+.assets-src

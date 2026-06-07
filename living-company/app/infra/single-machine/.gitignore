@@ -1,0 +1,3 @@
+# Filled secrets and the cloned Paperclip source — never commit
+.env
+.paperclip-src/
