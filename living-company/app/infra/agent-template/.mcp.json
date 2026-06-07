@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "tex-memory": {
+      "command": "node",
+      "args": ["/opt/living-company/scripts/tex-mcp.mjs"],
+      "env": {
+        "LC_BASE_URL": "http://web:3000",
+        "AGENT_ID": "${AGENT_ID}",
+        "COMPANY_ID": "${COMPANY_ID}",
+        "PROJECT_ID": "${PROJECT_ID}"
+      }
+    }
+  }
+}

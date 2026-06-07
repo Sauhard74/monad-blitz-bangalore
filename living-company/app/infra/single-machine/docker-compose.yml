@@ -1,0 +1,95 @@
+# Living Company — single-machine stack.
+# Paperclip (embedded Postgres) + our web app, co-located so the office ↔ Paperclip
+# calls stay on the internal Docker network (no public hop). Only the web app is
+# published publicly; the Paperclip dashboard binds to localhost for admin via SSH.
+name: living-company
+
+services:
+  paperclip:
+    build:
+      # Pinned Paperclip source (setup.sh clones it to a fixed commit).
+      context: ${PAPERCLIP_SRC:-./.paperclip-src}
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "3100"
+      PAPERCLIP_HOME: "/paperclip"
+      SERVE_UI: "true"
+      # Embedded Postgres lives under PAPERCLIP_HOME (the volume). No DB is exposed.
+      PAPERCLIP_DEPLOYMENT_MODE: "authenticated"
+      PAPERCLIP_DEPLOYMENT_EXPOSURE: "private"
+      PAPERCLIP_PUBLIC_URL: "${PAPERCLIP_PUBLIC_URL:-http://localhost:3100}"
+      PAPERCLIP_API_URL: "${PAPERCLIP_PUBLIC_URL:-http://localhost:3100}/api"
+      # The web container calls Paperclip over the internal compose hostname.
+      PAPERCLIP_ALLOWED_HOSTNAMES: "${PAPERCLIP_ALLOWED_HOSTNAMES:-paperclip,localhost,127.0.0.1}"
+      BETTER_AUTH_SECRET: "${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET in .env}"
+      PAPERCLIP_SECRETS_MASTER_KEY: "${PAPERCLIP_SECRETS_MASTER_KEY:?set in .env}"
+      # Optional: only needed if Paperclip's own agents will run real work.
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+    volumes:
+      - paperclip-data:/paperclip
+      # Bake our Tex-memory wiring into /app (image layer) so it survives rebuilds:
+      # the shared heartbeat skill + agent instruction templates instruct every
+      # agent to use recall_memory/remember instead of the file-based memory skill.
+      - ./overrides/paperclip-SKILL.md:/app/skills/paperclip/SKILL.md:ro
+      - ./overrides/ceo-AGENTS.md:/app/server/dist/onboarding-assets/ceo/AGENTS.md:ro
+      - ./overrides/default-AGENTS.md:/app/server/dist/onboarding-assets/default/AGENTS.md:ro
+      # Managers get hiring authority for their own teams (canCreateAgents at hire time).
+      - ./overrides/paperclip-create-agent-SKILL.md:/app/skills/paperclip-create-agent/SKILL.md:ro
+    # Dashboard reachable only from the host loopback (use an SSH tunnel for admin).
+    ports:
+      - "127.0.0.1:3100:3100"
+
+  web:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+      args:
+        # NEXT_PUBLIC_* must be set at BUILD time to reach the client bundle.
+        NEXT_PUBLIC_DATA_SOURCE: "${NEXT_PUBLIC_DATA_SOURCE:-mock}"
+    restart: unless-stopped
+    depends_on:
+      - paperclip
+    environment:
+      # Internal call over the compose network — minimal latency, key stays server-side.
+      PAPERCLIP_API_URL: "http://paperclip:3100/api"
+      PAPERCLIP_API_KEY: "${PAPERCLIP_API_KEY:-}"
+      PAPERCLIP_COMPANY_ID: "${PAPERCLIP_COMPANY_ID:-}"
+      # Flip to "paperclip" once the adapter + key are in place (default: mock).
+      NEXT_PUBLIC_DATA_SOURCE: "${NEXT_PUBLIC_DATA_SOURCE:-mock}"
+      # Agent reasoning (Azure AI Foundry).
+      AZURE_AI_ENDPOINT: "${AZURE_AI_ENDPOINT:-}"
+      AZURE_AI_KEY: "${AZURE_AI_KEY:-}"
+      AZURE_AI_MODEL: "${AZURE_AI_MODEL:-gpt-5.5}"
+      AZURE_AI_API_VERSION: "${AZURE_AI_API_VERSION:-2024-05-01-preview}"
+      # Tex long-term memory (server-side only).
+      TEX_API_URL: "${TEX_API_URL:-https://api.getmetacognition.com}"
+      TEX_API_KEY: "${TEX_API_KEY:-}"
+      TEX_ORG_ID: "${TEX_ORG_ID:-}"
+      # Provisioner: board key (create companies) + secret gate + the in-container
+      # Tex MCP path baked into each new company's agents.
+      PAPERCLIP_BOARD_KEY: "${PAPERCLIP_BOARD_KEY:-}"
+      PROVISION_SECRET: "${PROVISION_SECRET:-}"
+      PAPERCLIP_TEX_MCP_PATH: "${PAPERCLIP_TEX_MCP_PATH:-/paperclip/tex-mcp-agent.mjs}"
+      # Read-only view of the agents' workspaces so the office can preview the
+      # frontend they build (the "Preview Product" button).
+      PAPERCLIP_WORKSPACES_DIR: "/paperclip-ro/instances/default/workspaces"
+      # Monad testnet — on-chain agent payroll (the "Agent Economy").
+      MONAD_RPC_URL: "${MONAD_RPC_URL:-https://testnet-rpc.monad.xyz}"
+      MONAD_CHAIN_ID: "${MONAD_CHAIN_ID:-10143}"
+      MONAD_EXPLORER: "${MONAD_EXPLORER:-https://testnet.monadexplorer.com}"
+      MONAD_DEPLOYER_KEY: "${MONAD_DEPLOYER_KEY:-}"
+      MONAD_PAYROLL_ADDRESS: "${MONAD_PAYROLL_ADDRESS:-}"
+      MONAD_AGENT_SEED: "${MONAD_AGENT_SEED:-}"
+      MONAD_WORK_REWARD: "${MONAD_WORK_REWARD:-0.02}"
+    volumes:
+      # The Paperclip data volume, read-only — lets the web app render the built
+      # product without touching the agents' files.
+      - paperclip-data:/paperclip-ro:ro
+    ports:
+      - "80:3000"
+
+volumes:
+  paperclip-data:
