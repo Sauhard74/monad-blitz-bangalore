@@ -6,7 +6,7 @@
 
 🔗 **Live demo:** http://4.145.112.95
 🎥 **Demo video:** _<add link>_
-⛓️ **AgentPayroll contract (Monad testnet):** _<address after deploy>_ · [explorer](https://testnet.monadexplorer.com)
+⛓️ **AgentPayroll contract (Monad testnet):** `0x7433e23a46be147488a0b3e6fd9c754324e39c34` · [explorer](https://testnet.monadexplorer.com/address/0x7433e23a46be147488a0b3e6fd9c754324e39c34)
 
 ---
 
